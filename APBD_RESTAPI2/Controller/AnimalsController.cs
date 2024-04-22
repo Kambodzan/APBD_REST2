@@ -1,12 +1,12 @@
 ﻿using System.Data;
 using APBD_RESTAPI2.Models;
+using APBD_RESTAPI2.Models.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 
 namespace APBD_RESTAPI2.Controller;
 
 [ApiController]
-
 [Route("api/[controller]")]
 public class AnimalsController : ControllerBase
 {
@@ -45,7 +45,7 @@ public class AnimalsController : ControllerBase
         int DescriptionOrdinal = reader.GetOrdinal("Description");
         int CategoryOrdinal = reader.GetOrdinal("Category");
         int AreaOrdinal = reader.GetOrdinal("Area");
-        
+
         while (reader.Read())
         {
             animals.Add(new Animal()
@@ -57,12 +57,12 @@ public class AnimalsController : ControllerBase
                 Area = reader.GetString(AreaOrdinal)
             });
         }
-        
+
         return Ok(animals);
     }
 
     [HttpPost]
-    public IActionResult AddAnimal([FromBody] Animal newAnimal)
+    public IActionResult AddAnimal([FromBody] AddAnimal addAnimal)
     {
         using SqlConnection connection = new SqlConnection(_configuration.GetConnectionString("Default"));
         connection.Open();
@@ -72,20 +72,57 @@ public class AnimalsController : ControllerBase
                 "INSERT INTO Animal (Name, Description, Category, Area) VALUES (@Name, @Description, @Category, @Area);",
                 connection);
 
-        InsertQuery.Parameters.Add("@Name", SqlDbType.NVarChar).Value = newAnimal.Name;
-        InsertQuery.Parameters.Add("@Description", SqlDbType.NVarChar).Value = newAnimal.Description;
-        InsertQuery.Parameters.Add("@Category", SqlDbType.NVarChar).Value = newAnimal.Category;
-        InsertQuery.Parameters.Add("@Area", SqlDbType.NVarChar).Value = newAnimal.Area;
+        InsertQuery.Parameters.AddWithValue("@Name", addAnimal.Name);
+        InsertQuery.Parameters.AddWithValue("@Description", addAnimal.Description ?? (object)DBNull.Value);
+        InsertQuery.Parameters.AddWithValue("@Category", addAnimal.Category);
+        InsertQuery.Parameters.AddWithValue("@Area", addAnimal.Area);
 
         int result = InsertQuery.ExecuteNonQuery();
 
-        if (result > 0)
+        return Created();
+    }
+
+    [HttpPut("{idAnimal}")]
+    public IActionResult UpdateAnimal(int idAnimal, [FromBody] UpdateAnimal updateAnimal)
+    {
+        if (!ModelState.IsValid)
         {
-            return Created();
+            return BadRequest(ModelState);
         }
-        else
-        {
-            return StatusCode(500);
-        }
+
+        using SqlConnection connection = new SqlConnection(_configuration.GetConnectionString("Default"));
+        connection.Open();
+
+        SqlCommand updateQuery = new SqlCommand(
+            "UPDATE Animal SET Name = @Name, Description = @Description, Category = @Category, Area = @Area WHERE IdAnimal = @IdAnimal",
+            connection);
+        
+        updateQuery.Parameters.AddWithValue("@Name", updateAnimal.Name);
+        updateQuery.Parameters.AddWithValue("@Description", updateAnimal.Description ?? (object)DBNull.Value);
+        updateQuery.Parameters.AddWithValue("@Category", updateAnimal.Category);
+        updateQuery.Parameters.AddWithValue("@Area", updateAnimal.Area);
+        updateQuery.Parameters.AddWithValue("@IdAnimal", SqlDbType.Int).Value = idAnimal;
+
+        updateQuery.ExecuteReader();
+
+        return Ok();
+
+    }
+
+    [HttpDelete("{idAnimal}")]
+    public IActionResult RemoveAnimal(int idAnimal)
+    {
+        using SqlConnection connection = new SqlConnection(_configuration.GetConnectionString("Default"));
+        connection.Open();
+        
+        SqlCommand deleteQuery = new SqlCommand(
+            "DELETE FROM Animal WHERE IdAnimal = @IdAnimal",
+            connection);
+        
+        deleteQuery.Parameters.AddWithValue("@IdAnimal", SqlDbType.Int).Value = idAnimal;
+
+        deleteQuery.ExecuteNonQuery();
+
+        return Ok();
     }
 }
